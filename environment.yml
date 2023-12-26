@@ -3,6 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - arcticdb
+  - black
   - dash
   - flask
   - pandas
