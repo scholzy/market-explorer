@@ -1,0 +1,11 @@
+name: market-explorer
+channels:
+  - conda-forge
+dependencies:
+  - arcticdb
+  - dash
+  - flask
+  - pandas
+  - plotly
+  - python=3.9
+  - python-dotenv
