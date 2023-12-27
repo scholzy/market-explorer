@@ -5,9 +5,14 @@ dependencies:
   - arcticdb
   - black
   - dash
+  - dash-mantine-components
   - flask
   - pandas
+  - pip
   - plotly
   - python=3.9
   - python-dotenv
   - yfinance
+  # Pip-only dependencies
+  - pip:
+    - dash-iconify
