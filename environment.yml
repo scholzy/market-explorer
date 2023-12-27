@@ -10,3 +10,4 @@ dependencies:
   - plotly
   - python=3.9
   - python-dotenv
+  - yfinance
