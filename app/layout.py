@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import yfinance as yf
 
-from .backend.data_fetching import download_data, get_nasdaq_ticker_names
+from .backend.data_fetching import fetch_or_download_data, get_nasdaq_ticker_names
 from .common import DBLibraries, DBSymbols
 
 _HEADER_HEIGHT = 60
@@ -75,27 +75,25 @@ def stock_history_chart(tickers):
     if not tickers:
         return fig
 
-    df = download_data(tickers)
+    library = db[DBLibraries.Caches.value]
+    dfs = fetch_or_download_data(tickers, library)
 
-    # If we only supply one ticker, just plot the line chart.
-    if len(tickers) == 1:
-        fig.add_scatter(x=df.index, y=df["Close"], name=tickers[0])
-
-    # Otherwise, we get a MultiIndex DataFrame and we need to plot a scatter plot.
-    if len(tickers) > 1:
-        for ticker in tickers:
-            df[ticker] = df["Close"][ticker]
-            fig.add_scatter(x=df.index, y=df[ticker], name=ticker)
+    for df, ticker in zip(dfs, tickers):
+        fig.add_scatter(x=df.index, y=df["Close"], name=ticker)
 
     return fig
 
 
 def layout(database: Arctic):
+    global db
+    db = database
+
     header = header_bar()
     table = ticker_data_table(database)
     chart = dcc.Graph(id="stock-history-chart")
     body = dmc.Grid(
-        children=[ticker_multi_selection(database), chart], style={"height": 400}
+        children=[dmc.Col(ticker_multi_selection(database), span=4), dmc.Col(chart, span=8)],
+        style={"height": 400},
     )
     div = html.Div([header, _SPACER, body, _SPACER, table])
     return div

@@ -22,6 +22,10 @@ db = Arctic("lmdb://./db")
 if DBLibraries.Exchanges.value not in db.list_libraries():
     db.create_library(DBLibraries.Exchanges.value)
 
+# And somewhere to cache timeseries data
+if DBLibraries.Caches.value not in db.list_libraries():
+    db.create_library(DBLibraries.Caches.value)
+
 # For now, we just use the NASDAQ exchange data. We load in serialised
 # data from a downladed JSON file for now.
 exchange_lib = db[DBLibraries.Exchanges.value]

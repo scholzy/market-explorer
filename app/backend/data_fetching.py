@@ -42,6 +42,7 @@ def import_nasdaq_tickers(filepath: str, library: Library) -> None:
     #       ]
     #    }
     # }
+
     headers = nasdaq_data["data"]["headers"]
     indices = nasdaq_data["data"]["rows"]
     data = {header: [index[header] for index in indices] for header in headers}
@@ -59,14 +60,16 @@ def get_nasdaq_ticker_names(library: Library) -> pd.DataFrame:
     return library.read(DBSymbols.NasdaqTickers.value).data[["symbol", "name"]]
 
 
-def get_tickers(tickers: list[str]):
-    """Returns a yfinance Ticker object for the given list of ticker symbols.
+def fetch_or_download_data(tickers: list[str], library: Library) -> list[pd.DataFrame]:
+    if not tickers:
+        return []
 
-    Args:
-        tickers (list[str]): List of ticker symbols for the stocks.
-    """
-    return yf.Ticker(" ".join(tickers))
+    for ticker in tickers:
+        if not library.has_symbol(ticker):
+            data = download_data([ticker])
+            library.write(ticker, data)
 
+    return [library.read(ticker).data for ticker in tickers]
 
 def download_data(
     tickers: list[str], start_date: Union[str, datetime.datetime] = _START_DATE
