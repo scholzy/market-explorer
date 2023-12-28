@@ -1,8 +1,14 @@
+import datetime
 import json
+from typing import Union
 
 from arcticdb.version_store.library import Library
 import pandas as pd
 import yfinance as yf
+
+from app import DBLibraries, DBSymbols
+
+_START_DATE = "2000-01-01"
 
 
 def import_nasdaq_tickers(filepath: str, library: Library) -> None:
@@ -41,7 +47,16 @@ def import_nasdaq_tickers(filepath: str, library: Library) -> None:
     data = {header: [index[header] for index in indices] for header in headers}
 
     df = pd.DataFrame(data)
-    library.write("nasdaq_tickers", df)
+    library.write(DBSymbols.NasdaqTickers.value, df)
+
+
+def get_nasdaq_ticker_names(library: Library) -> pd.DataFrame:
+    """Returns a DataFrame of the NASDAQ ticker names.
+
+    Args:
+        library (Library): The Arctic library to read the data from.
+    """
+    return library.read(DBSymbols.NasdaqTickers.value).data[["symbol", "name"]]
 
 
 def get_tickers(tickers: list[str]):
@@ -53,12 +68,14 @@ def get_tickers(tickers: list[str]):
     return yf.Ticker(" ".join(tickers))
 
 
-def download_data(tickers: list[str], period: str = "1y"):
+def download_data(
+    tickers: list[str], start_date: Union[str, datetime.datetime] = _START_DATE
+):
     """Downloads the historical data for the given list of ticker symbols.
 
     Args:
         tickers (list[str]): List of ticker symbols for the stocks.
         period (str, optional): The period of time to download the data for. Defaults to "1mo".
     """
-    request_string = " ".join(tickers)
-    return yf.download(request_string, period=period)
+    request_string = tickers[0] if len(tickers) == 1 else " ".join(tickers)
+    return yf.download(request_string, start=start_date)

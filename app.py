@@ -37,7 +37,7 @@ if DBSymbols.NasdaqTickers.value not in exchange_lib.list_symbols():
 @app.route("/")
 def index():
     name = "Michael"
-    return render_template("index.html", name=name)
+    return render_template("index.html", title="Market Explorer", name=name)
 
 
 # Initialise the Dash app -- reusing the Flask server to host it

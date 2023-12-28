@@ -1,11 +1,17 @@
 from arcticdb import Arctic
-from dash import dash_table, html
+from dash import callback, dash_table, dcc, html, no_update, Input, Output, State
 from dash_iconify import DashIconify
 import dash_mantine_components as dmc
+import pandas as pd
+import plotly.express as px
+import yfinance as yf
 
+from .backend.data_fetching import download_data, get_nasdaq_ticker_names
 from .common import DBLibraries, DBSymbols
 
 _HEADER_HEIGHT = 60
+
+_SPACER = dmc.Space(h=30)
 
 
 def header_bar():
@@ -20,6 +26,26 @@ def header_bar():
             ]
         ),
         height=_HEADER_HEIGHT,
+    )
+
+
+def ticker_multi_selection(database: Arctic):
+    """Returns the multi-selection for the tickers.
+
+    Args:
+        database (Arctic): The Arctic database to read the data from.
+    """
+    ticker_data = get_nasdaq_ticker_names(database[DBLibraries.Exchanges.value])
+    selections = [
+        {"label": f"{ticker['name']} ({ticker['symbol']})", "value": ticker["symbol"]}
+        for _, ticker in ticker_data.iterrows()
+    ]
+    return dmc.MultiSelect(
+        label="Tickers",
+        placeholder="Select tickers",
+        data=selections,
+        searchable=True,
+        id="ticker-multi-selection",
     )
 
 
@@ -38,9 +64,38 @@ def ticker_data_table(database: Arctic):
     )
 
 
+@callback(
+    inputs=[Input("ticker-multi-selection", "value")],
+    output=Output("stock-history-chart", "figure"),
+    prevent_initial_call=True,
+)
+def stock_history_chart(tickers):
+    fig = px.scatter()
+
+    if not tickers:
+        return fig
+
+    df = download_data(tickers)
+
+    # If we only supply one ticker, just plot the line chart.
+    if len(tickers) == 1:
+        fig.add_scatter(x=df.index, y=df["Close"], name=tickers[0])
+
+    # Otherwise, we get a MultiIndex DataFrame and we need to plot a scatter plot.
+    if len(tickers) > 1:
+        for ticker in tickers:
+            df[ticker] = df["Close"][ticker]
+            fig.add_scatter(x=df.index, y=df[ticker], name=ticker)
+
+    return fig
+
+
 def layout(database: Arctic):
     header = header_bar()
     table = ticker_data_table(database)
-    body = dmc.Grid(children=dmc.Stack(dmc.MultiSelect()))
-    div = html.Div([header, body, table])
+    chart = dcc.Graph(id="stock-history-chart")
+    body = dmc.Grid(
+        children=[ticker_multi_selection(database), chart], style={"height": 400}
+    )
+    div = html.Div([header, _SPACER, body, _SPACER, table])
     return div
