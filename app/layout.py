@@ -1,13 +1,12 @@
 from arcticdb import Arctic
-from dash import callback, dash_table, dcc, html, no_update, Input, Output, State
+from dash import callback, dash_table, dcc, html, no_update, Input, Output
 from dash_iconify import DashIconify
 import dash_mantine_components as dmc
-import pandas as pd
 import plotly.express as px
-import yfinance as yf
 
 from .backend.data_fetching import fetch_or_download_data, get_nasdaq_ticker_names
-from .common import DBLibraries, DBSymbols
+from .backend.time_series_analysis import macd_analysis
+from .common import DBLibraries, DBSymbols, TSAnalyses
 
 _HEADER_HEIGHT = 60
 
@@ -84,16 +83,120 @@ def stock_history_chart(tickers):
     return fig
 
 
+def time_series_analysis_dropdown():
+    return dmc.Select(
+        label="Time series analysis",
+        placeholder="Select analysis",
+        data=[
+            {"label": "Moving average convergence-divergence", "value": "MACD"},
+        ],
+        searchable=True,
+        id="time-series-analysis-dropdown",
+    )
+
+
+def macd_parameter_inputs():
+    return dmc.Group(
+        [
+            dmc.NumberInput(
+                label="Fast period",
+                min=1,
+                max=100,
+                step=1,
+                value=12,
+                id="macd-fast-period-input",
+            ),
+            dmc.NumberInput(
+                label="Slow period",
+                min=1,
+                max=100,
+                step=1,
+                value=26,
+                id="macd-slow-period-input",
+            ),
+            dmc.NumberInput(
+                label="Signal period",
+                min=1,
+                max=100,
+                step=1,
+                value=9,
+                id="macd-signal-period-input",
+            ),
+        ]
+    )
+
+
+@callback(
+    inputs=[
+        Input("ticker-multi-selection", "value"),
+        Input("time-series-analysis-dropdown", "value"),
+        Input("macd-fast-period-input", "value"),
+        Input("macd-slow-period-input", "value"),
+        Input("macd-signal-period-input", "value"),
+    ],
+    output=Output("time-series-analysis-chart", "figure"),
+    prevent_initial_call=True,
+)
+def time_series_analysis_chart(
+    tickers, analysis_method, fast_period, slow_period, signal_period
+):
+    fig = px.scatter()
+
+    if not tickers or len(tickers) > 1:
+        return fig
+
+    library = db[DBLibraries.Caches.value]
+    dfs = fetch_or_download_data(tickers, library)
+
+    if len(dfs) > 1:
+        return fig
+    else:
+        df = dfs[0]
+
+    if analysis_method == TSAnalyses.MACD.value:
+        fig = macd_analysis(df, fast_period, slow_period, signal_period)
+
+    return fig
+
+
+@callback(
+    inputs=[Input("time-series-analysis-dropdown", "value")],
+    output=Output("time-series-analysis-parameters", "children"),
+    prevent_initial_call=True,
+)
+def instantiate_time_series_analysis_parameters(analysis_method):
+    if analysis_method == TSAnalyses.MACD.value:
+        return macd_parameter_inputs()
+    else:
+        return no_update
+
+
 def layout(database: Arctic):
+    # Quickest way to get the database into the callbacks.
+    # NOTE: This is not safe (especially) for ArcticDB since transactions are not atomic.
+    # TODO: Find a thread-safe way to pass the database connection to the callbacks.
     global db
     db = database
 
     header = header_bar()
-    table = ticker_data_table(database)
-    chart = dcc.Graph(id="stock-history-chart")
+    history_chart = dcc.Graph(id="stock-history-chart")
+    analysis_chart = dcc.Graph(id="time-series-analysis-chart")
     body = dmc.Grid(
-        children=[dmc.Col(ticker_multi_selection(database), span=4), dmc.Col(chart, span=8)],
-        style={"height": 400},
+        children=[
+            dmc.Col(
+                dmc.Stack([ticker_multi_selection(database), history_chart]), span=5
+            ),
+            dmc.Col(
+                dmc.Stack(
+                    [
+                        time_series_analysis_dropdown(),
+                        html.Div(id="time-series-analysis-parameters"),
+                        analysis_chart,
+                    ]
+                ),
+                span=7,
+            ),
+        ],
     )
-    div = html.Div([header, _SPACER, body, _SPACER, table])
+    div = html.Div([header, _SPACER, body, _SPACER])
     return div

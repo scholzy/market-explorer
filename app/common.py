@@ -8,3 +8,7 @@ class DBLibraries(Enum):
 
 class DBSymbols(Enum):
     NasdaqTickers = "nasdaq_tickers"
+
+
+class TSAnalyses(Enum):
+    MACD = "MACD"
