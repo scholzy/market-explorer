@@ -19,7 +19,10 @@ def header_bar():
         children=dmc.Group(
             [
                 DashIconify(
-                    icon="mdi:chart-line", height=_HEADER_HEIGHT, width=_HEADER_HEIGHT
+                    icon="mdi:chart-line",
+                    color="blue",
+                    height=_HEADER_HEIGHT,
+                    width=_HEADER_HEIGHT,
                 ),
                 dmc.Title("Market Explorer Dashboard", order=1),
             ]
@@ -85,8 +88,8 @@ def stock_history_chart(tickers):
 
 def time_series_analysis_dropdown():
     return dmc.Select(
-        label="Time series analysis",
-        placeholder="Select analysis",
+        label="Time series analysis method",
+        placeholder="Select analysis method",
         data=[
             {"label": "Moving average convergence-divergence", "value": "MACD"},
         ],
@@ -134,29 +137,38 @@ def macd_parameter_inputs():
         Input("macd-slow-period-input", "value"),
         Input("macd-signal-period-input", "value"),
     ],
-    output=Output("time-series-analysis-chart", "figure"),
+    output=Output("time-series-analysis-charts", "children"),
     prevent_initial_call=True,
 )
 def time_series_analysis_chart(
     tickers, analysis_method, fast_period, slow_period, signal_period
 ):
-    fig = px.scatter()
-
+    # We can only analyse one stock at a time.
     if not tickers or len(tickers) > 1:
-        return fig
+        return no_update
 
+    stock_ticker = tickers[0]
+
+    # Fetch the market data from the database -- by now, it should be cached but
+    # just in case, we use the helper function to download it if necessary.
     library = db[DBLibraries.Caches.value]
     dfs = fetch_or_download_data(tickers, library)
 
+    # Sanity check that we only have one DataFrame to analyse.
     if len(dfs) > 1:
-        return fig
+        return no_update
     else:
         df = dfs[0]
 
+    # Perform the analysis.
     if analysis_method == TSAnalyses.MACD.value:
-        fig = macd_analysis(df, fast_period, slow_period, signal_period)
+        fig_candlestick, fig_indicator = macd_analysis(
+            df, stock_ticker, fast_period, slow_period, signal_period
+        )
+        return [dcc.Graph(figure=fig_candlestick), dcc.Graph(figure=fig_indicator)]
 
-    return fig
+    # Fallback, don't update the charts.
+    return no_update
 
 
 @callback(
@@ -179,19 +191,30 @@ def layout(database: Arctic):
     db = database
 
     header = header_bar()
+
+    exploration_heading = dmc.Title("Explore the market", order=2)
+    analysis_heading = dmc.Title("Analyse one stock in detail", order=2)
     history_chart = dcc.Graph(id="stock-history-chart")
-    analysis_chart = dcc.Graph(id="time-series-analysis-chart")
+
     body = dmc.Grid(
         children=[
             dmc.Col(
-                dmc.Stack([ticker_multi_selection(database), history_chart]), span=5
+                dmc.Stack(
+                    [
+                        exploration_heading,
+                        ticker_multi_selection(database),
+                        history_chart,
+                    ]
+                ),
+                span=5,
             ),
             dmc.Col(
                 dmc.Stack(
                     [
+                        analysis_heading,
                         time_series_analysis_dropdown(),
                         html.Div(id="time-series-analysis-parameters"),
-                        analysis_chart,
+                        html.Div(id="time-series-analysis-charts"),
                     ]
                 ),
                 span=7,
